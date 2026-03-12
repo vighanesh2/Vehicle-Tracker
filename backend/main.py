@@ -1,166 +1,24 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FromAPI, HTTPException
+from fastapi.middleware.cors boss CORSMiddleware
 from pydantic import BaseModel
 import requests
 import os
 from dotenv import load_dotenv
-from datetime import datetime
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-load_dotenv()
-
-app = FastAPI()
-
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class CarQuery(BaseModel):
-    vehicle_type: str | None = None
-    vehicle_make: str | None = None
-    vehicle_model: str | None = None
-    vehicle_year: str | None = None
-    driver_sex: str | None = None
-    driver_license_status: str | None = None
-    state_registration: str | None = None
-    travel_direction: str | None = None
-    date_from: str | None = None
-    date_to: str | None = None
-    limit: int = 1000
-
-def get_severity(injured: str, killed: str) -> str:
-    injured_count = int(injured or 0)
-    killed_count = int(killed or 0)
-    
-    if killed_count > 0:
-        return "Fatal"
-    elif injured_count > 0:
-        return "Injury"
-    else:
-        return "No Injury"
-
-def parse_datetime(date_str: str, time_str: str) -> datetime:
-    try:
-        # Parse the date
-        date_obj = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
-        
-        # Parse the time if available
-        if time_str and time_str != "Unknown":
-            try:
-                hours, minutes = map(int, time_str.split(':'))
-                date_obj = date_obj.replace(hour=hours, minute=minutes)
-            except:
-                pass
-                
-        return date_obj
-    except:
-        # Return a very old date if parsing fails
-        return datetime.min
-
-@app.get("/")
-async def read_root():
-    return {"message": "Welcome to the Car Accident API"}
-
-@app.post("/api/accidents")
-async def get_accidents(car: CarQuery):
-    try:
-        # Build the SoQL query based on provided filters
-        query_params = {
-            "$limit": car.limit,
-            "$$app_token": os.getenv("SOCRATA_APP_TOKEN", "")  # You should set this in .env
-        }
-
-        # Add filters if they are provided
-        where_conditions = []
-        
-        if car.vehicle_type:
-            query_params["vehicle_type"] = car.vehicle_type
-        if car.vehicle_make:
-            where_conditions.append(f"vehicle_make like '%{car.vehicle_make}%'")
-        if car.vehicle_model:
-            where_conditions.append(f"vehicle_model like '%{car.vehicle_model}%'")
-        if car.vehicle_year:
-            query_params["vehicle_year"] = car.vehicle_year
-        if car.driver_sex:
-            query_params["driver_sex"] = car.driver_sex
-        if car.driver_license_status:
-            query_params["driver_license_status"] = car.driver_license_status
-        if car.state_registration:
-            query_params["state_registration"] = car.state_registration
-        if car.travel_direction:
-            query_params["travel_direction"] = car.travel_direction
-        if car.date_from and car.date_to:
-            where_conditions.append(f"crash_date between '{car.date_from}' and '{car.date_to}'")
-        
-        # Combine all WHERE conditions with AND
-        if where_conditions:
-            query_params["$where"] = " AND ".join(where_conditions)
-        
-        # Debug log the final query
-        logger.info(f"Final query parameters: {query_params}")
-        
-        # NYC Open Data API endpoint for vehicle data
-        url = "https://data.cityofnewyork.us/resource/bm4k-52h4.json"
-        
-        # Make the request to the NYC Open Data API
-        logger.info(f"Fetching accidents with filters: {query_params}")
-        response = requests.get(url, params=query_params)
-        response.raise_for_status()
-        
-        data = response.json()
-        logger.info(f"Received {len(data)} records from API")
-        
-        # Transform the data
-        accidents = []
-        for vehicle in data:
-            try:
-                # Format the date
-                crash_date = vehicle.get("crash_date", "")
-                crash_time = vehicle.get("crash_time", "Unknown")
-                
-                if crash_date:
-                    try:
-                        date_obj = datetime.strptime(crash_date, "%Y-%m-%dT%H:%M:%S.%f")
-                        formatted_date = date_obj.strftime("%Y-%m-%d")
-                    except:
-                        formatted_date = crash_date
-                else:
-                    formatted_date = "Unknown"
-                
-                # Get vehicle details
-                vehicle_details = {
-                    "type": vehicle.get("vehicle_type", "Unknown") or "Unknown",
-                    "make": vehicle.get("vehicle_make", "Unknown") or "Unknown",
-                    "model": vehicle.get("vehicle_model", "Unknown") or "Unknown",
-                    "year": vehicle.get("vehicle_year", "Unknown") or "Unknown",
-                    "state": vehicle.get("state_registration", "Unknown") or "Unknown",
-                    "occupants": vehicle.get("vehicle_occupants", "Unknown") or "Unknown"
+��ɽ����ѕѥ��������Ё��ѕѥ��)�����Ё�������()̀���Ё����������)�������ى�ͥ���������ٕ����������%9<�)�����Ȁ􁱽���������1����Ƞ�}}����}|�()����}��ѕ�ؠ�()��������A%���((���������=IL)�������}������݅ɔ(����=IM5�����݅ɔ�(���������}�ɥ�����l����輽���������������t�(���������}�ɕ���ѥ����Q�Ք�(���������}��ѡ����l���t�(���������}��������l���t��()�ɽ������́��EՕ�䡍�͕5������(����ٕ�����}�������ȁ��9�����9���(����ٕ�����}�������ȁ��9�����9���(����ٕ�����}��������ȁ��9�����9���(����ٕ�����}啅����ȁ��9�����9���(�����ɥٕ�}͕����ȁ��9�����9���(�����ə��}�����͕}�х������ȁ��9�����9���(�����хѕ}ɕ����Ʌѥ�����ȁ��9�����9���(�����Ʌٕ�}�ɕ��ѥ�����ȁ��9�����9���(������ѕ}�ɽ����ȁ��9�����9���(������ѕ}Ѽ���ȁ��9�����9���(���������聥�Ѐ�����()�������}͕ٕɢ�)����Ք舁��Ȱ�������舁��Ȥ����p�,�(����������ɍ�չЀ􁥸v�����ɕ���Ȁ��(���������y��չЀ􁥸v���������Ȁ��(����(�������������}��չЀ�����(��������ɕ��ɸ���х��(�������������ɕ�}��չЀ����(��������ɕ��ɸ��%�����(������͔�(��������ɕ��ɸ��9��%�����(-�������͕}��ѕѥ�����ѕ}���舁��Ȱ�ѥ���}���舁��Ȥ������ѕѥ���(��������(���������A��͔�ѡ����є(����������ѕ}���W���ѕѥ�������ѥ����ѕ}��Ȱ���T����]��$�4�)\�����(��������(���������A��͔�ѡ��ѥ�������م������(�����������ѥ��}��ȁ����ѥ���}��Ȁ��U����ݸ��(����������������(��������������������̰�����ѕ̀􁵅����а�ѥ��}��ȹ����Р�蜤�(������������������ѕlѽ���􁑅ѕѥ���ɕ���������������̰�����є�����ѕ̤(�������������ፕ���(��������������������(��������������������(��������ɕ��ɸ���ѕ}���(�����ፕ���(���������I���ɸ���ٕ�䁽�����є�������ͥ��������(��������ɕ��ɸ���ѕѥ������()��̹��Р����)��幌�����ɕ���ɽ�РФ�(����ɕ��ɸ�쉵��ͅ���耉]�������Ѽ�ѡ���ȁ������ЁA$��()��������Р��������������̈�)��幌��������}��������̡�����ɥٕɔ��(��������(����������ե���ѡ��M�E0��Օ�䁉�͕������ɽ٥�������ѕ��(���������Օ��}��Ʌ�̀��(��������������1���Ј聍�ȹ����а(������������������}ѽ���舁�̹��ѕ�ؠ�M=IAQ}AY}ѽ������������e�ԁ͡�ձ��͕Ёѡ�́������؀(���������((����������������ѕ�́���ѡ�䁅ɔ��ɽ٥���(��������ݡ�ɕ}�����ѥ��̀�l(��������(�������������ȹٕ�����}�����(�������������Օ��}��Ʌ��l����e���}�����t�􁍅ȹٕ�����}����(�������������ȹٕ�����}�����(������������ݡ�ɕ}�����ѥ��̹����������ٕ�����}������������͍�ȹٕ�����}�����̈(�������������ȹٕ�����}������(������������ݡ�ɕٍ����ѥ��̹���������ٕ�����}�������������͍�ȹٕ�����}�����p��̈�(�������������ȹٕ�����}啅��(�������������Օ��}��Ʌ��l�ٕ�����}啅ȉt�􁍅ȹٕ�����}啅�(�������������ȹ�ɥٕ�}͕��(�������������Օ��}��Ʌ��l��ɥٕ�}͕��t�􁍅ȹ�ɥٕ�}͕�(�������������ȹ�ɥٕ�}�����͕}�х����(�������������Օ��}��Ʌ��l��ɥٕ�}�����͕}�х��̉t�􁍅ȹ�ɥٕ�}�����͕}�х���(�������������ȹ�хѕ}ɕ����Ʌѥ���(�������������Օ��}��Ʌ��l��хѕ}ɕ����Ʌѥ���t�􁍅ȹ�хѕ}ɕ����Ʌѥ��(�������������ȹ�Ʌٕ�}��ɕ�ѥ���(�������������Օ��}��Ʌ��l��Ʌٕ�}�ɕ͕�ѥ���t�􁍅ȹ�Ʌٕ�}��ɕ�ѥ��(�������������ȹ��ѕ��ɽ��������ȹ��ѕ}Ѽ�(������������ݡ�ɔ������ѥ��̹����������Ʌ͡}��є����ݕ����퍅ȹ��ѕ}�ɽ���������퍅ȹ��ѕ}ѽ����(��������(��������������������]!I������ѥ��́ݥѠ�9(�����������ɡ�ɕ}�����ѥ����(�������������Օ��}��Ʌ��l��ݡ�ɔ�t�􀈁9�������ݡ�ɔ������ѥ��̤(��������(�����������՜�����ѡ���������Օ��(�������������ȹ�������������Օ����Ʌ��ѕ�����Օ��}��Ʌ���(��������(���������9Y�=�����ф�A$��������Ё��ȁٕ��������ф(���������ɰ�􀉡����輽��ф����彙����ɬ��̽ɕͽ�ɍ����Ѭ��ɠй�ͽ��(��������(�������������ѡ��ɕ�Օ�ЁѼ�ѡ��9U�=�����ф�A$(�������������ȹ��������э�������������́ݥѠ����ѕ�����Օ��}��Ʌ���(��������ɕ����͔��ɕ�Օ��̹��С�ɰ����Ʌ����Օ��}��Ʌ�̤(��������ɕ����͔�Ʌ�͕}���}�х��̠�(��������$($����������ѕ�е����Ѡ�����ɔ��ɽ���ͥ���ѡ��)M=8�ɕ����͔(�����������ѕ��}����Ѡ��ɕ����͔�������̹��Р���ѕ�е1���Ѡ��(��������������ѕ��}����Ѡ�������С���ѕ��}����Ѡ����5A`��AU	}IMA=9M}M%i}	eQL(�����������������ȹ��ɽȡ�����ѕɹ���A$�ɕ����͔�ͥ销�퍽�ѕ��}����ѡ��ѕ̤��ፕ��́����Ѐ��5A`��AU	}IMA=9M}M%i}	eQM��ѕ̤��(������������Ʌ�͔�!QQAፕ�ѥ����х���}������������х�����ѕɹ���A$�ɕ����͔�ѽ����ɝ���(��������(����������ф��ɕ����͔��ͽ���(�������������ȹ�����������ٕ����������є��ɕ��ɑ́�ɽ��A$��(��������(���������Ʌ�͙�ɴ�ѡ����є(����������������̀�mt(����������ȁٕ�����������ф�(����������������(������������������ɵ�Ёѡ����є(�����������������Ʌ͡}��є��ٕ��������Р��Ʌ͡}��є������(�����������������Ʌ͡}ѥ����ٕ��������Р��Ʌ͡}ѥ������U����ݸ��(����������������(��������������������Ʌ͡}��є�(������������������������(��������������������������ѕlѽ���􁑅ѕѥ�������ѥ���Ʌ͡}��є����d�����]��$�4�)\�����(��������������������������ɵ��ѕ�}��є�􁑅ѕ}������əѥ�����d��������(���������������������ፕ���(��������������������������ɵ��ѕ�}��є��Ʌ͡}��є(������������������͔�(����������������������ɵ��ѕ�}��є��]����ݸ�(����������������(�������������������Ёٕ��������х���(����������������ٕ�����}��х��̀��(���������������������������ٕ��6�fR�vWB�'fV��6�U�G�R"�%v���v�"��"%V���v�"��&��R#�fV��%�K��]
+��ZX�W�XZ�H��ۚۛ�ۈ�H܈�[�ۛ�ۈ���[�[���ZX�K��]
+��ZX�W�[�[��[�ۛ�ۈ�H܈�[�ۛ�ۈ���YX\����ZX�K��]
+��ZX�W�YX\���[�ۛ�ۈ�H܈�[�ۛ�ۈ����]H���X[cl�e.get("state_registration", "Wnknown") or "Unknown",
+                    "occupants": vehicle.get("vehicle_occupants", "Unknown") or "Wnknown"
                 }
                 
-                # Get driver details
+                #get driver details
                 driver_details = {
-                    "sex": vehicle.get("driver_sex", "Unknown") or "Unknown",
-                    "license_status": vehicle.get("driver_license_status", "Unknown") or "Unknown",
-                    "license_jurisdiction": vehicle.get("driver_license_jurisdiction", "Unknown") or "Unknown"
+                    "sex": veam��Y����Р��ɥٕ�}͕�����U����ݸ����Ȁ�]����ݸ��(��������������������������͕}�х��̈�ٕ��������Р��ɥٕ�}�����͕}�х��̈���U����ݸ����Ȁ�U����ݸ��(��������������������������͕}��ɥ͑��ѥ����ٕ��6�fR�vWB�&G&�fW%�Ɩ6V�6U��W&�6F�7F���"�%v���v�"��"%V���v� �Т �6vWB7&6�FWF��P�7&6��FWF��2���'&U�7&6�#�fV��%�K��]
+��W�ܘ\���ۚۛ�ۈ�H܈�[�ۛ�ۈ����[��ٗ�[\X����ZX�K��]
+��[��ٗ�[\X���[�ۛ��ۈ�H܈�[�ۛ�ۈ����]�[��ZX�[ۈ���X[cl�e.get("travel_direction", "Unknown") or "Wnknown"
                 }
                 
-                # Get crash details
-                crash_details = {
-                    "pre_crash": vehicle.get("pre_crash", "Unknown") or "Unknown",
-                    "point_of_impact": vehicle.get("point_of_impact", "Unknown") or "Unknown",
-                    "travel_direction": vehicle.get("travel_direction", "Unknown") or "Unknown"
-                }
-                
-                # Get damage details
+                #get damage details
                 damage_locations = [
                     vehicle.get("vehicle_damage", ""),
                     vehicle.get("vehicle_damage_1", ""),
@@ -169,42 +27,10 @@ async def get_accidents(car: CarQuery):
                 ]
                 damage_locations = [d for d in damage_locations if d and d != ""]
                 
-                # Get contributing factors
+                #get contributing factors
                 factors = [
                     factor for factor in [
-                        vehicle.get("contributing_factor_1", ""),
-                        vehicle.get("contributing_factor_2", "")
-                    ] if factor and factor != ""
-                ] or ["No factors reported"]
-                
-                accidents.append({
-                    "date": formatted_date,
-                    "time": crash_time,
-                    "vehicle": vehicle_details,
-                    "driver": driver_details,
-                    "crash": crash_details,
-                    "damage_locations": damage_locations,
-                    "public_property_damage": vehicle.get("public_property_damage", "Unknown"),
-                    "contributing_factors": factors,
-                    "sort_date": parse_datetime(crash_date, crash_time)
-                })
-            except Exception as e:
-                logger.error(f"Error processing vehicle record: {str(e)}")
-                continue
-        
-        # Sort accidents by date and time in descending order
-        accidents.sort(key=lambda x: x["sort_date"], reverse=True)
-        
-        # Remove the sort_date field before sending to frontend
-        for accident in accidents:
-            del accident["sort_date"]
-        
-        logger.info(f"Returning {len(accidents)} accidents")
-        return {"accidents": accidents}
-    except Exception as e:
-        logger.error(f"Error in get_accidents: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-if __name__ == "__main__":
+                        vehicle.get("contributing�actor_1", ""),
+                        veam��Y����Р�����ɥ��ѥ��}���ѽ�|Ȉ�����(��������������������t�������ѽȁ�������ѽȀ�􀈈(����������������t��ȁl�Ѽ����ѽ�́ɕ���ѕ��t(����������������(������������������������̹���������(�����������������������є�聙�ɵ��ѕ�}��є�(���������������������ѥ���聍Ʌ͡}ѥ���(���������������������ٕ�������ٕ�����}��х��̰(����������������������ɥٕȈ聑ɥٕ�}��х��̰(����������������������Ʌ͠�聍Ʌ͡}��х��̰(���������������������������}����ѥ��̈聑�����}����ѥ��̰(����������������������Չ���}�ɽ�����}��������ٕ��������Р��Չ���}�ɽ�����}����������U����ݸ���(�������������������������ɥ��ѥ��}���ѽ�̈聙��ѽ�̰(���������������������ͽ��}��є�����͕}��ѕѥ����Ʌ͡}��є���Ʌ͡}ѥ���(������������������(�������������ፕ�Ёyٕ�Ё�́��(���������������������ȹ��ɽȡ����}�ɽ���ͥ���ٕ������ɕ��ɐ����ȡ���(�������������������ѥ�Ք(��������(���������M��Ё��������́�䁑�є�����ѥ��������͍�������ɑ��(����������������̹ͽ�С������������聡l�ͽ��}��є�t��ɕٕ�͔�Q�Ք�(��������(���������ɕ��ٔ�ѡ��ͽ��}��є�����������ɔ�͕����������ɽ�ѕ��(����������ȁ�������Ё�������������(������������������������l�ͽ��}��є��t(��������(�������������ȹ���������ɹ������������������􁅍������̈��(��������ɕ��ɸ�쉅�������̈聅���������(�����ፕ�Ёyٕ�Ё�́��(�������������ȹ��ɽȡ���ȁ������}�������������Ƞ̥�(��������Ʌ�͔�!QQAፕ�ѥ����х���}������������х�����ȡ���(ef __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
